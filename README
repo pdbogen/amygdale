@@ -1,0 +1,127 @@
+================================================================================
+== SETUP =======================================================================
+================================================================================
+
+Requires the following perl modules:
+	YAML
+	POE
+	POE::Session
+	POE::Component::IRC
+	POE::Wheel::SocketFactory
+	POE::Wheel::ReadWrite
+
+At the time of writing, these are obtainable from, but you should really
+just use CPAN:
+	http://search.cpan.org/CPAN/authors/id/I/IN/INGY/YAML-0.39.tar.gz
+	http://search.cpan.org/CPAN/authors/id/R/RC/RCAPUTO/POE-0.3101.tar.gz
+	http://search.cpan.org/CPAN/authors/id/B/BI/BINGOS/POE-Component-IRC-4.66.tar.gz
+
+================================================================================
+== CONFIGURATION ===============================================================
+================================================================================
+
+Configuration is done through the 'config.yaml' file, which uses YAML
+("YAML Ain't a Markup Language" ). Config directives are like:
+	<NAME>: '<blah>'
+
+There's some special stuff if <blah> contains certain characters, but I
+don't know what they are, and they shouldn't be needed. Don't blame me
+if you break it. (But I'll still try to help fix it if you tell me)
+
+HISTORY: <Number of Lines>
+
+	Amygdale can internally store a unified chat history. This 
+	configuration parameter controls how many lines are stored.
+
+SERVERS: <protocol>://<username>:<password>@<host>:<port>[/<options>]
+
+	The following protocols are supported:
+	
+	irc: Internet Relay Chat
+		* The first option MUST be the name of a channel or channels
+		(comma-separated) to join upon connecting
+		* The following options may be any combination of:
+			ircname=<text>
+			username=<text>
+			tag=<text>
+			showjoin		Toggles whether joins and parts to the channel
+							are reported.
+		
+		Ex.:
+			irc://a@irc.tamu.edu/#test
+			irc://a:potrzebie@irc.efnet.org/#somechannel,#anotherchannel
+			irc://Frank@irc.random.com/#foo/ircname=Frank/username=Not&space;I
+		
+	
+	dcn: Direct Connect chat
+		* Options may be any combination of:
+			tag=<text>		The tag for this server (shown between [] when
+							sent to other servers)
+			share=<number>	The reported share for this server (might be
+							needed for servers with minimum share sizes)
+			debug			If set, ALL lines received from the DC server
+							will be printed to the console
+		
+		Ex.:
+			dcn://a@valknut.dyndns.info:59176
+	
+	Multiple servers can be specified; just separate them with whitespace.
+	
+	The following escape sequences are permissible and understood for
+	configuration parameters:
+		&colon;	= ':'
+		&space; = ' '
+		&slash; = '/'
+		&amp;	= '&'
+
+
+================================================================================
+== CREDITS =====================================================================
+================================================================================
+
+Author: Patrick "Octalthorpe" Bogen (pdbogen at gmail dot com)
+
+Thanks to:
+	sedulus, for writing the algorithm used in locktokey.pl
+	
+	David Marwood, Suxxx, Stefan Gorling, Sphinx, aDe, Sid for
+	documenting the DC protocol
+	
+	David Morris, for glancing at his logs when Amygdale mysteriously
+	couldn't connect to DC
+
+	Youri, for discovering and reporting some bugs related to the OSCAR
+	module's rate handling. Even if he only did it to get mentioned
+	here.
+
+
+If there's anyone I forgot, thanks to you too.
+
+Feel free to send suggestions or bug reports. Donations are always
+appreciated, I don't get paid for this. ;) I accept beer, money, and
+sexual favors (women only, thanks). Paypal to Patrick Bogen's email
+address.
+
+================================================================================
+== LICENSE =====================================================================
+================================================================================
+
+Copyright 2004-2006, Patrick Bogen
+
+This file is part of Amygdale.
+
+Amygdale is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Amygdale is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Amygdale; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+================================================================================

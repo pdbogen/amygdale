@@ -1,0 +1,4 @@
+date
+./amygdale.pl
+sleep 5
+exec ./loop

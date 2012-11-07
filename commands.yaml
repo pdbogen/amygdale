@@ -1,0 +1,267 @@
+--- #YAML:1.0
+HELP: |-
+  sub {
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+    my @commands = (
+    	"Identify <password>",
+    	"Register <username> <password>",
+    	"Password <old> <new>",
+    	"Join <connect string>",
+    	"List", 
+    	"Disconnect <#>",
+    	"Reconnect <#>",
+    	"Ignore <nick>",
+    	"ListIgnore",
+    	"Toggle",
+    	"Die",
+    	"History <page>",
+    );
+    $kernel->post( $sid, $replypath, $nick, "I understand the following commands:" );
+    for my $cmd (@commands) {
+    	$kernel->post( $sid, $replypath, $nick, $cmd );
+    }
+  }
+IDENTIFY: |-
+  sub {
+    use warnings;
+    use strict;
+    use YAML qw'LoadFile DumpFile';
+    use Digest::MD5 qw( md5_hex );
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+    if( -e "users.yaml" ) {
+      $heap->{ "users" } = LoadFile( "users.yaml" );
+    } else {
+      $kernel->post( $sid, $replypath, $nick, "No users found; registering you!" );
+      $heap->{ "users" } = {
+        $nick => md5_hex( $what )
+      };
+      DumpFile( "users.yaml", $heap->{ "users" } );
+    }
+    if(
+      exists $heap->{ "users" } && 
+      exists $heap->{ "users" }->{ $nick } &&
+      $heap->{ "users" }->{ $nick } eq md5_hex( $what ) ) {
+      if( !exists( $heap->{ "identified" } ) ) {
+        $heap->{ "identified" } = {};
+      }
+      $heap->{ "identified" }->{ $nick } = 1;
+      $kernel->post( $sid, $replypath, $nick, "Hello, $nick!" );
+    } else {
+      $kernel->post( $sid, $replypath, $nick, "Invalid credentials." );
+    }
+  }
+  
+REGISTER: |-
+  sub {
+    use Digest::MD5 qw( md5_hex );
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+    if( !amygdale::authorize( $heap, $nick, 1 ) ) {
+      $kernel->post( $sid, $replypath, $nick, "You must identify to use this command." );
+      return;
+    }
+    my( $user, $pass ) = split( ' ', $what, 2 );
+    $heap->{ "users" }->{ $user } = md5_hex( $pass );
+    DumpFile( "users.yaml", $heap->{ "users" } );
+    $kernel->post( $sid, $replypath, $nick, "$user registered with password '$pass'" );
+  }
+  
+PASSWORD: |-
+  sub {
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+    if( !amygdale::authorize( $heap, $nick, 1 ) ) {
+      $kernel->post( $sid, $replypath, $nick, "You must identify to use this command." );
+      return;
+    }
+    $heap->{ "users" }->{ $nick } = md5_hex( $what );
+    DumpFile( "users.yaml", $heap->{ "users" } );
+    $kernel->post( $sid, $replypath, $nick, "Password changed." );
+  }
+
+JOIN: |-
+  sub {
+    use warnings;
+    use strict;
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+
+    if( !amygdale::authorize( $heap, $nick, 1 ) ) {
+      $kernel->post( $sid, $replypath, $nick, "You must identify to use this command." );
+      return;
+    }
+
+    $kernel->post( "core", "connect", $nick, $what, $sid, $replypath );
+  }
+
+LIST: |-
+  sub {
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+
+    if( !amygdale::authorize( $heap, $nick, 1 ) ) {
+      $kernel->post( $sid, $replypath, $nick, "You must identify to use this command." );
+      return;
+    }
+
+    if( exists( $heap->{ "list" } ) ) {
+      my $response;
+      my $i = 0;
+      for my $conn ( @{ $heap->{ "list" } } ) {
+        $response .= ++$i.": ".$conn->[0]."\n";
+      }
+      $kernel->post( $sid, $replypath, $nick, $response );
+    } else {
+      kernel->post( $sid, $replypath, $nick, "No connections found." );
+    }
+  }
+
+DISCONNECT: |-
+  sub {
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+
+    if( !amygdale::authorize( $heap, $nick, 1 ) ) {
+      $kernel->post( $sid, $replypath, $nick, "You must identify to use this command." );
+      return;
+    }
+
+    if( !( $what =~ /^[0-9]+$/ ) ) {
+      $kernel->post( $sid, $replypath, $nick, "DISCONNECT argument should be numeric." );
+      return;
+    }
+    $what--;
+    if( !exists( $heap->{ "list" } ) ) {
+      $kernel->post( $sid, $replypath, $nick, "No connections found! (How are you talking to me?!)" );
+      return;
+    }
+    if( !exists( $heap->{ "list" }->[$what] ) ) {
+      $kernel->post( $sid, $replypath, $nick, "Connection #".($what+1)." not found." );
+    }
+    my $targ = $heap->{ "list" }->[$what]->[1]->{ "ssid" };
+    $kernel->post( $targ, "stop" );
+    splice( @{ $heap->{ "list" } }, $what, 1 );
+    $kernel->post( $sid, $replypath, $nick, "Connection #".($what+1)." terminated." );
+  }
+
+RECONNECT: |-
+  sub {
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+    if( !amygdale::authorize( $heap, $nick, 1 ) ) {
+      $kernel->post( $sid, $replypath, $nick, "You must identify to use this command." );
+      return;
+    }
+
+    if( !( $what =~ /^[0-9]+$/ ) ) {
+      $kernel->post( $sid, $replypath, $nick, "RECONNECT argument should be numeric." );
+      return;
+    }
+    $what--;
+    if( !exists( $heap->{ "list" } ) ) {
+      $kernel->post( $sid, $replypath, $nick, "No connections found! (How are you talking to me?!)" );
+      return;
+    }
+    if( !exists( $heap->{ "list" }->[$what] ) ) {
+      $kernel->post( $sid, $replypath, $nick, "Connection #".($what+1)." not found." );
+      return;
+    }
+    my $targ = $heap->{ "list" }->[$what]->[1]->{ "sid" };
+    my $connstr = $heap->{ "list" }->[$what]->[0];
+    $kernel->post( $sid, $relpypath, $nick, "Reconnecting." );
+    $kernel->post( $targ, "stop" );
+    splice( @{ $heap->{ "list" } }, $what, 1 );
+    $kernel->post( "core", "connect", $nick, $connstr, $sid, $replypath );
+  }
+
+IGNORE: |-
+  sub {
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+    if( !amygdale::authorize( $heap, $nick, 1 ) ) {
+      $kernel->post( $sid, $replypath, $nick, "You must identify to use this command." );
+      return;
+    }
+
+  	if( ! exists( $amygdale::ignored{ uc( $what ) } ) ) {
+  	  $amygdale::ignored{ uc( $what ) } = 1;
+  	  DumpFile( "ignored.yaml", \%amygdale::ignored );
+      $kernel->post( $sid, $replypath, $nick, "$what is now ignored." );
+  	} else {
+  	  delete $amygdale::ignored{ uc( $what ) };
+  	  DumpFile( "ignored.yaml", \%amygdale::ignored );
+      $kernel->post( $sid, $replypath, $nick, "$what is no longer ignored." );
+  	}
+  }
+LISTIGNORE: |-
+  sub {
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+    if( !amygdale::authorize( $heap, $nick, 1 ) ) {
+      $kernel->post( $sid, $replypath, $nick, "You must identify to use this command." );
+      return;
+    }
+  	my $reply = "The following users are ignored: ";
+  	foreach ( keys %amygdale::ignored ) {
+  		$reply .= $_." ";
+  	}
+  	$kernel->post( $sid, $replypath, $nick, substr( $reply, 0, -1 ) );
+  }
+TOGGLE: ! >-
+  sub {
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+    if( !amygdale::authorize( $heap, $nick, 1 ) ) {
+      $kernel->post( $sid, $replypath, $nick, "You must identify to use this command." );
+      return;
+    }
+
+    my $response;
+    if( exists( $amygdale::config{ "DAMNDC" } ) ) {
+      delete $amygdale::config{ "DAMNDC" };
+      $response = "Forwarding enabled.";
+    } else {
+      $amygdale::config{ "DAMNDC" } = "I hate them.";
+      $response = "Forwarding disabled.";
+    }
+    $kernel->post( $sid, $replypath, $nick, $response );
+  }
+DIE: |-
+  sub {
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+    if( !amygdale::authorize( $heap, $nick, 1 ) ) {
+      $kernel->post( $sid, $replypath, $nick, "You must identify to use this command." );
+      return;
+    }
+
+    exit 0;
+  }
+
+HISTORY: |-
+  sub {
+    my( $kernel, $heap, $nick, $what, $sid, $replypath ) = @_;
+    if( !amygdale::authorize( $heap, $nick, 1 ) ) {
+      $kernel->post( $sid, $replypath, $nick, "You must identify to use this command." );
+      return;
+    }
+    use POSIX;
+    my $count = $#{ $heap->{ 'history' } }+1;
+    my $pages = ceil( $count/10 );
+    $what = sprintf( "%d", $what );
+    print( "HIST: $count entries\n" );
+    print( "HIST: $pages pages\n" );
+    if( $what =~ /^[1-9][0-9]*$/ ) {
+      print( "HIST: '$what' is numeric\n" );
+    } else {
+      print( "HIST: '$what' is NOT numeric\n" );
+      return "Argument should numeric and positive.";
+    }
+    print( "HIST: ".ceil( $count/10 ), "\n" );
+    if( $what > $pages ) {
+      return "Argument should be a number from 1 to $pages.";
+    }
+  
+    $what--; # Page '1' is 0-9...
+    my $end = $what*10+9;
+    if( $end > ($count-1) ) {
+      $end = $count-1;
+    }
+    my @sel = ($what*10)..$end;
+    print( "HIST: ".join( ' ', @sel ), "\n" );
+    print( "HIST: \n".join( "\n", @{ $heap->{ history } }[ @sel ] ), "\n" );
+    for my $line ( @{ $heap->{ history } }[ @sel ] ) {
+      $kernel->yield( "send_private", $nick, "$line", $sid );
+  	}
+  	return "";
+  }
