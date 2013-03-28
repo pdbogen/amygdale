@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 =COPYLEFT
-	Copyright 2004, Patrick Bogen
+	Copyright 2004-2013, Patrick Bogen
 
 	This file is part of Amygdale.
 
